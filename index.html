@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where is the golf? — Ireland</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root {
+    --bg: #fbfaf6;
+    --panel-bg: #ffffff;
+    --text: #16291f;
+    --text-secondary: #56685e;
+    --border: #e0e3e1;
+    --accent: #1f5b3a;
+    --highlight: #fff3cd;
+    /* Stevens bivariate palette */
+    --c1: #e8e8e8; --c2: #dfb0d6; --c3: #be64ac;
+    --c4: #ace4e4; --c5: #a5add3; --c6: #8c62aa;
+    --c7: #5ac8c8; --c8: #5698b9; --c9: #3b4994;
+    /* Sequential ramps */
+    --golf-1: #f7fcb9; --golf-2: #addd8e; --golf-3: #41ab5d; --golf-4: #006837; --golf-5: #004529;
+    --pop-1:  #f1eef6; --pop-2:  #bdc9e1; --pop-3:  #74a9cf; --pop-4:  #2b8cbe; --pop-5:  #045a8d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  body { display: flex; flex-direction: column; }
+  header { padding: 14px 24px 10px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.2px; }
+  header .sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 360px; min-height: 0; }
+  #map { width: 100%; height: 100%; background: var(--bg); }
+  aside { background: var(--panel-bg); border-left: 1px solid var(--border); padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .view-switch { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .view-switch button { flex: 1; padding: 8px 6px; background: var(--panel-bg); border: none; border-right: 1px solid var(--border); font: 11px/1 -apple-system, sans-serif; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; cursor: pointer; transition: background .12s, color .12s; }
+  .view-switch button:last-child { border-right: none; }
+  .view-switch button:hover { background: #f6f8f6; color: var(--text); }
+  .view-switch button.active { background: var(--accent); color: #fff; }
+  .courses-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+  .courses-toggle input { cursor: pointer; }
+  .panel-title { font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; }
+  .legend { background: #f6f8f6; border-radius: 6px; padding: 10px 12px; font-size: 11px; }
+  .legend-grid { display: grid; grid-template-columns: 22px 32px 32px 32px; grid-template-rows: 32px 32px 32px 22px; gap: 0; align-items: center; justify-items: center; margin: 6px 0; }
+  .legend-cell { width: 32px; height: 32px; border: 1px solid #fff; }
+  .legend-cell.na { position: relative; }
+  .legend-cell.na::before, .legend-cell.na::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #fff; }
+  .legend-cell.na::before { transform: rotate(45deg); }
+  .legend-cell.na::after { transform: rotate(-45deg); }
+  .legend-axis { font-size: 9px; color: var(--text-secondary); }
+  .legend-row-label { font-size: 9px; color: var(--text-secondary); writing-mode: horizontal-tb; }
+  .ramp { display: flex; height: 14px; border-radius: 3px; overflow: hidden; margin: 6px 0 4px; }
+  .ramp > div { flex: 1; }
+  .ramp-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); }
+  table.county-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.county-table thead th { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; background: var(--panel-bg); position: sticky; top: 0; }
+  table.county-table thead th:hover { color: var(--text); }
+  table.county-table thead th.num { text-align: right; }
+  table.county-table tbody td { padding: 5px 6px; border-bottom: 1px solid #f0f2f0; }
+  table.county-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.county-table tbody tr { cursor: pointer; transition: background .1s; }
+  table.county-table tbody tr:hover { background: #f6f8f6; }
+  table.county-table tbody tr.highlight { background: var(--highlight); }
+  .table-scroll { max-height: 360px; overflow-y: auto; border-top: 1px solid var(--border); }
+  .leaflet-popup-content { font: 12px/1.45 -apple-system, sans-serif; min-width: 200px; }
+  .popup-name { font-weight: 700; font-size: 13px; margin-bottom: 6px; color: var(--text); }
+  .popup-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
+  .popup-row .lbl { color: var(--text-secondary); }
+  .popup-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .leaflet-control-attribution { font-size: 10px !important; background: rgba(251,250,246,0.85) !important; }
+  footer { padding: 8px 24px; font-size: 10px; color: var(--text-secondary); border-top: 1px solid var(--border); background: var(--bg); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 60vh 1fr; }
+    aside { border-left: none; border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Where is the golf? Supply, demand and density across the 32 counties of Ireland</h1>
+  <div class="sub">Bivariate analysis of <strong>473 golf courses</strong> against the 2022 (ROI) and 2021 (NI) censuses. Conor Fahy.</div>
+</header>
+
+<main>
+  <div id="map"></div>
+
+  <aside>
+    <div>
+      <div class="panel-title">View</div>
+      <div class="view-switch">
+        <button data-view="bivariate" class="active">Bivariate</button>
+        <button data-view="golf">Golf rate</button>
+        <button data-view="pop">Population</button>
+      </div>
+    </div>
+
+    <label class="courses-toggle">
+      <input type="checkbox" id="show-courses">
+      <span>Show 473 individual courses</span>
+    </label>
+
+    <div class="legend" id="legend-bivariate">
+      <div class="panel-title">Legend — Golf rate × Population density</div>
+      <div class="legend-grid">
+        <span></span>
+        <span class="legend-axis">Low</span>
+        <span class="legend-axis">Mid</span>
+        <span class="legend-axis">High</span>
+
+        <span class="legend-row-label">High</span>
+        <div class="legend-cell" style="background:var(--c7)"></div>
+        <div class="legend-cell" style="background:var(--c8)"></div>
+        <div class="legend-cell na" style="background:var(--c9)"></div>
+
+        <span class="legend-row-label">Mid</span>
+        <div class="legend-cell" style="background:var(--c4)"></div>
+        <div class="legend-cell" style="background:var(--c5)"></div>
+        <div class="legend-cell" style="background:var(--c6)"></div>
+
+        <span class="legend-row-label">Low</span>
+        <div class="legend-cell" style="background:var(--c1)"></div>
+        <div class="legend-cell" style="background:var(--c2)"></div>
+        <div class="legend-cell" style="background:var(--c3)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-secondary);margin-top:4px">
+        <span>← Pop density</span><span>Golf rate →</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-secondary);margin-top:8px;font-style:italic">
+        Top-right cell is empty: no county combines above-median golf rate with above-median population density.
+      </div>
+    </div>
+
+    <div class="legend" id="legend-golf" style="display:none">
+      <div class="panel-title">Legend — Golf courses per 100,000 residents</div>
+      <div class="ramp"><div style="background:var(--golf-1)"></div><div style="background:var(--golf-2)"></div><div style="background:var(--golf-3)"></div><div style="background:var(--golf-4)"></div><div style="background:var(--golf-5)"></div></div>
+      <div class="ramp-labels"><span>1.4</span><span>4.5</span><span>7.5</span><span>10.5</span><span>13.5</span></div>
+    </div>
+
+    <div class="legend" id="legend-pop" style="display:none">
+      <div class="panel-title">Legend — People per km²</div>
+      <div class="ramp"><div style="background:var(--pop-1)"></div><div style="background:var(--pop-2)"></div><div style="background:var(--pop-3)"></div><div style="background:var(--pop-4)"></div><div style="background:var(--pop-5)"></div></div>
+      <div class="ramp-labels"><span>22</span><span>50</span><span>125</span><span>1000</span><span>4600</span></div>
+    </div>
+
+    <div>
+      <div class="panel-title">Counties — click a row to fly to it</div>
+      <div class="table-scroll">
+        <table class="county-table" id="county-table">
+          <thead>
+            <tr>
+              <th data-sort="name">County</th>
+              <th data-sort="course_count" class="num">Courses</th>
+              <th data-sort="per_100k" class="num">Per 100k</th>
+              <th data-sort="pop_density" class="num">Pop / km²</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <div>Sources: OpenStreetMap (ODbL), CSO Census 2022, NISRA Census 2021, Tailte Éireann, OSNI Open Data.</div>
+  <div>Analysis CRS: EPSG:2157. Cartography: Conor Fahy, 2026. <a href="case_study.md">Read the case study →</a></div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+// ---------- Stevens bivariate palette (1–9) ----------
+const BIVAR = {
+  1: "#e8e8e8", 2: "#dfb0d6", 3: "#be64ac",
+  4: "#ace4e4", 5: "#a5add3", 6: "#8c62aa",
+  7: "#5ac8c8", 8: "#5698b9", 9: "#3b4994"
+};
+
+// Sequential ramps with break thresholds
+const GOLF_RAMP = [
+  { max: 4,   color: "#f7fcb9" },
+  { max: 6,   color: "#addd8e" },
+  { max: 8,   color: "#41ab5d" },
+  { max: 10,  color: "#006837" },
+  { max: 999, color: "#004529" }
+];
+const POP_RAMP = [
+  { max: 40,   color: "#f1eef6" },
+  { max: 80,   color: "#bdc9e1" },
+  { max: 200,  color: "#74a9cf" },
+  { max: 1000, color: "#2b8cbe" },
+  { max: 99999,color: "#045a8d" }
+];
+
+function rampColor(value, ramp) {
+  for (const r of ramp) if (value <= r.max) return r.color;
+  return ramp[ramp.length - 1].color;
+}
+
+// ---------- Map init ----------
+const map = L.map("map", { zoomControl: true, scrollWheelZoom: true })
+  .setView([53.4, -8.0], 7);
+
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+  subdomains: "abcd",
+  maxZoom: 18
+}).addTo(map);
+
+// ---------- State ----------
+let currentView = "bivariate";
+let countiesLayer = null;
+let coursesLayer = null;
+let countyFeatures = [];     // for the table
+let selectedCounty = null;
+
+// ---------- Styling per view ----------
+function styleFor(props) {
+  if (currentView === "bivariate") {
+    return {
+      fillColor: BIVAR[props.bivar_class] || "#cccccc",
+      weight: 0.6, color: "#444", fillOpacity: 0.85
+    };
+  }
+  if (currentView === "golf") {
+    return {
+      fillColor: rampColor(props.per_100k, GOLF_RAMP),
+      weight: 0.6, color: "#444", fillOpacity: 0.85
+    };
+  }
+  // pop
+  return {
+    fillColor: rampColor(props.pop_density, POP_RAMP),
+    weight: 0.6, color: "#444", fillOpacity: 0.85
+  };
+}
+
+// ---------- Popup ----------
+function popupHtml(p) {
+  return `
+    <div class="popup-name">${p.name}</div>
+    <div class="popup-row"><span class="lbl">Jurisdiction</span><span class="val">${p.jurisdiction}</span></div>
+    <div class="popup-row"><span class="lbl">Population (${p.census_year})</span><span class="val">${p.pop_2022.toLocaleString()}</span></div>
+    <div class="popup-row"><span class="lbl">Population density</span><span class="val">${p.pop_density.toFixed(1)} / km²</span></div>
+    <div class="popup-row"><span class="lbl">Golf courses</span><span class="val">${p.course_count}</span></div>
+    <div class="popup-row"><span class="lbl">Per 100,000 residents</span><span class="val">${p.per_100k.toFixed(2)}</span></div>
+  `;
+}
+
+// ---------- Load counties ----------
+fetch("data/counties.geojson")
+  .then(r => r.json())
+  .then(geojson => {
+    countyFeatures = geojson.features.map(f => f.properties).sort((a,b)=>b.per_100k - a.per_100k);
+    countiesLayer = L.geoJSON(geojson, {
+      style: f => styleFor(f.properties),
+      onEachFeature: (feature, layer) => {
+        layer.bindPopup(popupHtml(feature.properties));
+        layer.on("click", () => highlightTable(feature.properties.county_id));
+      }
+    }).addTo(map);
+    map.fitBounds(countiesLayer.getBounds(), { padding: [20, 20] });
+    renderTable();
+  })
+  .catch(err => console.error("Failed to load counties:", err));
+
+// ---------- Courses layer (optional) ----------
+function loadCoursesOnce() {
+  if (coursesLayer) return Promise.resolve();
+  return fetch("data/courses.geojson")
+    .then(r => r.json())
+    .then(geojson => {
+      coursesLayer = L.geoJSON(geojson, {
+        pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+          radius: 3, weight: 0.6, color: "#16291f", fillColor: "#1f5b3a", fillOpacity: 0.65
+        }),
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties;
+          layer.bindPopup(`<div class="popup-name">${p.name}</div>
+            <div class="popup-row"><span class="lbl">County</span><span class="val">${p.county}</span></div>`);
+        }
+      });
+    });
+}
+
+document.getElementById("show-courses").addEventListener("change", e => {
+  if (e.target.checked) {
+    loadCoursesOnce().then(() => coursesLayer.addTo(map));
+  } else if (coursesLayer) {
+    map.removeLayer(coursesLayer);
+  }
+});
+
+// ---------- View switching ----------
+document.querySelectorAll(".view-switch button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".view-switch button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentView = btn.dataset.view;
+    if (countiesLayer) countiesLayer.setStyle(f => styleFor(f.properties));
+    ["bivariate", "golf", "pop"].forEach(v => {
+      document.getElementById("legend-" + v).style.display = v === currentView ? "block" : "none";
+    });
+  });
+});
+
+// ---------- Table ----------
+let sortKey = "per_100k", sortDir = -1;
+function renderTable() {
+  const tbody = document.querySelector("#county-table tbody");
+  const sorted = [...countyFeatures].sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+    return (av - bv) * sortDir;
+  });
+  tbody.innerHTML = sorted.map(c => `
+    <tr data-id="${c.county_id}">
+      <td>${c.name}</td>
+      <td class="num">${c.course_count}</td>
+      <td class="num">${c.per_100k.toFixed(2)}</td>
+      <td class="num">${c.pop_density.toFixed(0)}</td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll("tr").forEach(tr => {
+    tr.addEventListener("click", () => flyToCounty(tr.dataset.id));
+  });
+}
+
+document.querySelectorAll("#county-table thead th").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (sortKey === key) sortDir = -sortDir;
+    else { sortKey = key; sortDir = key === "name" ? 1 : -1; }
+    renderTable();
+  });
+});
+
+function flyToCounty(countyId) {
+  if (!countiesLayer) return;
+  let target;
+  countiesLayer.eachLayer(l => {
+    if (l.feature.properties.county_id === countyId) target = l;
+  });
+  if (target) {
+    map.fitBounds(target.getBounds(), { padding: [60, 60] });
+    target.openPopup();
+    highlightTable(countyId);
+  }
+}
+
+function highlightTable(countyId) {
+  selectedCounty = countyId;
+  document.querySelectorAll("#county-table tbody tr").forEach(tr => {
+    tr.classList.toggle("highlight", tr.dataset.id === countyId);
+  });
+}
+</script>
+</body>
+</html>
