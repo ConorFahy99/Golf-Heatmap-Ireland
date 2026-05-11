@@ -2,7 +2,7 @@
 
 A bivariate spatial analysis of golf course provision and population density across the island of Ireland — 32 counties, both Republic of Ireland and Northern Ireland.
 
-**[🗺 Live interactive map →](https://conorfahy99.github.io/golf-heatmap-ireland/)**
+**[🗺 Live interactive map →](https://conorfahy99.github.io/Golf-Heatmap-Ireland/)**
 
 ![Bivariate map of golf provision and population density across the 32 counties of Ireland](preview.png)
 
